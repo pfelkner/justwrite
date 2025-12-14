@@ -19,37 +19,87 @@ export function WritePage({ documentId, onBack }: WritePageProps) {
     const addXP = useMutation(api.users.addXP)
 
     const [title, setTitle] = useState('')
+    const [localContent, setLocalContent] = useState<string | null>(null) // Local content state
     const [isSaving, setIsSaving] = useState(false)
     const [lastSaved, setLastSaved] = useState<Date | null>(null)
     const [sessionWords, setSessionWords] = useState(0)
     const sessionStartRef = useRef<number>(Date.now())
     const initialWordCountRef = useRef<number | null>(null)
+    const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const pendingContentRef = useRef<{ content: string; wordCount: number } | null>(null)
 
-    // Set initial title when document loads
+    // Set initial title and content when document loads
     useEffect(() => {
         if (document) {
             setTitle(document.title)
+            // Only set local content on first load
+            if (localContent === null) {
+                setLocalContent(document.content)
+            }
             if (initialWordCountRef.current === null) {
                 initialWordCountRef.current = document.wordCount
             }
         }
-    }, [document])
+    }, [document, localContent])
 
-    // Debounced content update
-    const handleContentUpdate = useCallback(async (content: string, wordCount: number) => {
+    // Debounced save function
+    const debouncedSave = useCallback(async (content: string, wordCount: number) => {
+        // Clear any pending save
+        if (saveTimeoutRef.current) {
+            clearTimeout(saveTimeoutRef.current)
+        }
+
+        // Store pending content
+        pendingContentRef.current = { content, wordCount }
+
+        // Schedule save after 500ms of no typing
+        saveTimeoutRef.current = setTimeout(async () => {
+            if (pendingContentRef.current) {
+                setIsSaving(true)
+                try {
+                    await updateContent({
+                        documentId,
+                        content: pendingContentRef.current.content,
+                        wordCount: pendingContentRef.current.wordCount,
+                    })
+                    setLastSaved(new Date())
+                } finally {
+                    setIsSaving(false)
+                    pendingContentRef.current = null
+                }
+            }
+        }, 500)
+    }, [documentId, updateContent])
+
+    // Handle content updates from editor - update local state immediately, debounce save
+    const handleContentUpdate = useCallback((content: string, wordCount: number) => {
+        // Update local content immediately (no waiting)
+        setLocalContent(content)
+
         // Track words written in this session
         if (initialWordCountRef.current !== null) {
             const wordsWrittenThisSession = Math.max(0, wordCount - initialWordCountRef.current)
             setSessionWords(wordsWrittenThisSession)
         }
 
-        // Save to database
-        setIsSaving(true)
-        try {
-            await updateContent({ documentId, content, wordCount })
-            setLastSaved(new Date())
-        } finally {
-            setIsSaving(false)
+        // Debounced save to database
+        debouncedSave(content, wordCount)
+    }, [debouncedSave])
+
+    // Cleanup timeout on unmount and save any pending content
+    useEffect(() => {
+        return () => {
+            if (saveTimeoutRef.current) {
+                clearTimeout(saveTimeoutRef.current)
+            }
+            // Save pending content immediately on unmount
+            if (pendingContentRef.current) {
+                updateContent({
+                    documentId,
+                    content: pendingContentRef.current.content,
+                    wordCount: pendingContentRef.current.wordCount,
+                })
+            }
         }
     }, [documentId, updateContent])
 
@@ -63,6 +113,16 @@ export function WritePage({ documentId, onBack }: WritePageProps) {
 
     // Save session stats when leaving
     const saveSessionStats = useCallback(async () => {
+        // Save any pending content first
+        if (pendingContentRef.current) {
+            await updateContent({
+                documentId,
+                content: pendingContentRef.current.content,
+                wordCount: pendingContentRef.current.wordCount,
+            })
+            pendingContentRef.current = null
+        }
+
         if (sessionWords > 0) {
             const sessionMinutes = Math.round((Date.now() - sessionStartRef.current) / 60000)
             const today = new Date().toISOString().split('T')[0]
@@ -81,10 +141,14 @@ export function WritePage({ documentId, onBack }: WritePageProps) {
                 await addXP({ amount: xpEarned })
             }
         }
-    }, [sessionWords, recordStats, addXP])
+    }, [sessionWords, recordStats, addXP, documentId, updateContent])
 
     // Handle back button with stats saving
     const handleBack = async () => {
+        // Clear pending timeout
+        if (saveTimeoutRef.current) {
+            clearTimeout(saveTimeoutRef.current)
+        }
         await saveSessionStats()
         onBack()
     }
@@ -96,6 +160,9 @@ export function WritePage({ documentId, onBack }: WritePageProps) {
             </div>
         )
     }
+
+    // Use local content if available, otherwise use document content
+    const editorContent = localContent ?? document.content
 
     return (
         <div className="min-h-screen bg-background">
@@ -138,7 +205,7 @@ export function WritePage({ documentId, onBack }: WritePageProps) {
                                 </div>
                                 <div>
                                     <span className="text-muted-foreground">Gesamt: </span>
-                                    <span className="font-medium">{document.wordCount} Wörter</span>
+                                    <span className="font-medium">{document.wordCount + sessionWords} Wörter</span>
                                 </div>
                             </div>
                             <div className="text-muted-foreground">
@@ -148,9 +215,9 @@ export function WritePage({ documentId, onBack }: WritePageProps) {
                     </CardContent>
                 </Card>
 
-                {/* Editor */}
+                {/* Editor - uses local content to avoid sync loop */}
                 <Editor
-                    content={document.content}
+                    content={editorContent}
                     onUpdate={handleContentUpdate}
                     placeholder="Fang an zu schreiben..."
                 />

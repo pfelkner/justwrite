@@ -1,26 +1,27 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { getAuthUserId } from "@convex-dev/auth/server";
 
-// Record daily stats or update existing
+// Record daily stats
 export const recordStats = mutation({
     args: {
-        userId: v.id("users"),
-        date: v.string(), // ISO date string (YYYY-MM-DD)
+        date: v.string(),
         wordsWritten: v.number(),
         minutesWritten: v.number(),
         xpEarned: v.number(),
     },
     handler: async (ctx, args) => {
-        // Check if stats for this day already exist
+        const userId = await getAuthUserId(ctx);
+        if (!userId) throw new Error("Not authenticated");
+
         const existing = await ctx.db
             .query("dailyStats")
             .withIndex("by_user_date", (q) =>
-                q.eq("userId", args.userId).eq("date", args.date)
+                q.eq("userId", userId).eq("date", args.date)
             )
             .first();
 
         if (existing) {
-            // Update existing stats
             await ctx.db.patch(existing._id, {
                 wordsWritten: existing.wordsWritten + args.wordsWritten,
                 sessionsCount: existing.sessionsCount + 1,
@@ -30,9 +31,8 @@ export const recordStats = mutation({
             });
             return existing._id;
         } else {
-            // Create new stats for this day
             const statsId = await ctx.db.insert("dailyStats", {
-                userId: args.userId,
+                userId,
                 date: args.date,
                 wordsWritten: args.wordsWritten,
                 sessionsCount: 1,
@@ -48,17 +48,18 @@ export const recordStats = mutation({
 // Get stats for a date range (for heatmap)
 export const getStatsRange = query({
     args: {
-        userId: v.id("users"),
         startDate: v.string(),
         endDate: v.string(),
     },
     handler: async (ctx, args) => {
+        const userId = await getAuthUserId(ctx);
+        if (!userId) return [];
+
         const stats = await ctx.db
             .query("dailyStats")
-            .withIndex("by_user", (q) => q.eq("userId", args.userId))
+            .withIndex("by_user", (q) => q.eq("userId", userId))
             .collect();
 
-        // Filter by date range
         return stats.filter(
             (s) => s.date >= args.startDate && s.date <= args.endDate
         );
@@ -68,14 +69,16 @@ export const getStatsRange = query({
 // Get today's stats
 export const getToday = query({
     args: {
-        userId: v.id("users"),
         date: v.string(),
     },
     handler: async (ctx, args) => {
+        const userId = await getAuthUserId(ctx);
+        if (!userId) return null;
+
         return await ctx.db
             .query("dailyStats")
             .withIndex("by_user_date", (q) =>
-                q.eq("userId", args.userId).eq("date", args.date)
+                q.eq("userId", userId).eq("date", args.date)
             )
             .first();
     },
@@ -83,11 +86,14 @@ export const getToday = query({
 
 // Get total stats for user
 export const getTotals = query({
-    args: { userId: v.id("users") },
-    handler: async (ctx, args) => {
+    args: {},
+    handler: async (ctx) => {
+        const userId = await getAuthUserId(ctx);
+        if (!userId) return null;
+
         const allStats = await ctx.db
             .query("dailyStats")
-            .withIndex("by_user", (q) => q.eq("userId", args.userId))
+            .withIndex("by_user", (q) => q.eq("userId", userId))
             .collect();
 
         return {

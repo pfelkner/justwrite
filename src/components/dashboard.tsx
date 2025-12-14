@@ -1,4 +1,5 @@
 import { useMutation, useQuery } from 'convex/react'
+import { useAuthActions } from '@convex-dev/auth/react'
 import { api } from '../../convex/_generated/api'
 import type { Id, Doc } from '../../convex/_generated/dataModel'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
@@ -9,29 +10,32 @@ import { StreakDisplay } from './streak-display'
 import { XPBar } from './xp-bar'
 
 interface DashboardProps {
-    userId: Id<"users">
-    user: Doc<"users">
+    profile: Doc<"profiles">
     onOpenDocument: (documentId: Id<"documents">) => void
 }
 
-export function Dashboard({ userId, user, onOpenDocument }: DashboardProps) {
+export function Dashboard({ profile, onOpenDocument }: DashboardProps) {
+    const { signOut } = useAuthActions()
     const checkIn = useMutation(api.users.checkIn)
     const todayStats = useQuery(api.stats.getToday, {
-        userId,
         date: new Date().toISOString().split('T')[0],
     })
-    const totals = useQuery(api.stats.getTotals, { userId })
-    const documents = useQuery(api.documents.listByUser, { userId })
+    const totals = useQuery(api.stats.getTotals)
+    const documents = useQuery(api.documents.listByUser)
     const createDocument = useMutation(api.documents.create)
 
     const handleCheckIn = async () => {
         const today = new Date().toISOString().split('T')[0]
-        await checkIn({ userId, date: today })
+        await checkIn({ date: today })
     }
 
     const handleNewDocument = async () => {
-        const docId = await createDocument({ userId, title: "Neues Dokument" })
+        const docId = await createDocument({ title: "Neues Dokument" })
         onOpenDocument(docId)
+    }
+
+    const handleSignOut = async () => {
+        await signOut()
     }
 
     return (
@@ -46,8 +50,11 @@ export function Dashboard({ userId, user, onOpenDocument }: DashboardProps) {
                         </h1>
                     </div>
                     <div className="flex items-center gap-4">
-                        <StreakDisplay streak={user.currentStreak} />
-                        <XPBar xp={user.xp} level={user.level} />
+                        <StreakDisplay streak={profile.currentStreak} />
+                        <XPBar xp={profile.xp} level={profile.level} />
+                        <Button variant="ghost" size="sm" onClick={handleSignOut}>
+                            Abmelden
+                        </Button>
                     </div>
                 </div>
             </header>
@@ -109,7 +116,7 @@ export function Dashboard({ userId, user, onOpenDocument }: DashboardProps) {
                         <CardContent className="space-y-3">
                             <div className="flex justify-between items-center">
                                 <span className="text-muted-foreground">Längster Streak</span>
-                                <Badge variant="secondary">{user.longestStreak} Tage 🔥</Badge>
+                                <Badge variant="secondary">{profile.longestStreak} Tage 🔥</Badge>
                             </div>
                             <div className="flex justify-between items-center">
                                 <span className="text-muted-foreground">Gesamt Wörter</span>
@@ -125,7 +132,7 @@ export function Dashboard({ userId, user, onOpenDocument }: DashboardProps) {
                             </div>
                             <div className="flex justify-between items-center">
                                 <span className="text-muted-foreground">Streak Freezes</span>
-                                <Badge variant="outline">❄️ {user.streakFreezes}</Badge>
+                                <Badge variant="outline">❄️ {profile.streakFreezes}</Badge>
                             </div>
                         </CardContent>
                     </Card>

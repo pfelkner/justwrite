@@ -1,41 +1,51 @@
-import { useEffect, useState } from 'react'
-import { useMutation, useQuery } from 'convex/react'
+import { useState, useEffect } from 'react'
+import { useConvexAuth, useMutation, useQuery } from 'convex/react'
 import { api } from '../convex/_generated/api'
 import type { Id } from '../convex/_generated/dataModel'
 import { Dashboard } from './components/dashboard'
 import { WritePage } from './components/write-page'
+import { AuthPage } from './components/auth-page'
 
 type View =
   | { type: 'dashboard' }
   | { type: 'write'; documentId: Id<"documents"> }
 
 function App() {
-  const [userId, setUserId] = useState<Id<"users"> | null>(null)
+  const { isAuthenticated, isLoading } = useConvexAuth()
   const [view, setView] = useState<View>({ type: 'dashboard' })
-  const createUser = useMutation(api.users.getOrCreate)
-  const user = useQuery(api.users.get, userId ? { userId } : "skip")
 
-  // Initialize user on first load
+  const profile = useQuery(api.users.getCurrentProfile)
+  const createProfile = useMutation(api.users.createProfile)
+
+  // Create profile if user is authenticated but has no profile
   useEffect(() => {
-    const storedUserId = localStorage.getItem('justwrite_user_id')
-    if (storedUserId) {
-      setUserId(storedUserId as Id<"users">)
-    } else {
-      // Create a new user
-      createUser({
+    if (isAuthenticated && profile === null) {
+      createProfile({
         name: "Writer",
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-      }).then((id) => {
-        localStorage.setItem('justwrite_user_id', id)
-        setUserId(id)
       })
     }
-  }, [createUser])
+  }, [isAuthenticated, profile, createProfile])
 
-  if (!userId || !user) {
+  // Show loading state
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="animate-pulse text-muted-foreground">Wird geladen...</div>
+      </div>
+    )
+  }
+
+  // Show auth page if not authenticated
+  if (!isAuthenticated) {
+    return <AuthPage />
+  }
+
+  // Show loading while profile is being fetched/created
+  if (profile === undefined || profile === null) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="animate-pulse text-muted-foreground">Profil wird geladen...</div>
       </div>
     )
   }
@@ -53,7 +63,6 @@ function App() {
   if (view.type === 'write') {
     return (
       <WritePage
-        userId={userId}
         documentId={view.documentId}
         onBack={goToDashboard}
       />
@@ -62,8 +71,7 @@ function App() {
 
   return (
     <Dashboard
-      userId={userId}
-      user={user}
+      profile={profile}
       onOpenDocument={openDocument}
     />
   )

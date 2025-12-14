@@ -4,15 +4,14 @@ import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
 import { Editor } from './editor'
 import { Button } from './ui/button'
-import { Card, CardContent, CardHeader } from './ui/card'
+import { Card, CardContent } from './ui/card'
 
 interface WritePageProps {
-    userId: Id<"users">
     documentId: Id<"documents">
     onBack: () => void
 }
 
-export function WritePage({ userId, documentId, onBack }: WritePageProps) {
+export function WritePage({ documentId, onBack }: WritePageProps) {
     const document = useQuery(api.documents.get, { documentId })
     const updateContent = useMutation(api.documents.updateContent)
     const updateTitle = useMutation(api.documents.updateTitle)
@@ -72,7 +71,6 @@ export function WritePage({ userId, documentId, onBack }: WritePageProps) {
             const xpEarned = Math.min(50, Math.floor(sessionWords / 10))
 
             await recordStats({
-                userId,
                 date: today,
                 wordsWritten: sessionWords,
                 minutesWritten: sessionMinutes,
@@ -80,10 +78,10 @@ export function WritePage({ userId, documentId, onBack }: WritePageProps) {
             })
 
             if (xpEarned > 0) {
-                await addXP({ userId, amount: xpEarned })
+                await addXP({ amount: xpEarned })
             }
         }
-    }, [sessionWords, userId, recordStats, addXP])
+    }, [sessionWords, recordStats, addXP])
 
     // Handle back button with stats saving
     const handleBack = async () => {

@@ -1,156 +1,161 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { getAuthUserId } from "@convex-dev/auth/server";
 
-// Get the current user or create one if it doesn't exist
-export const getOrCreate = mutation({
+// Get current user's profile (or create one if doesn't exist)
+export const getCurrentProfile = query({
+    args: {},
+    handler: async (ctx) => {
+        const userId = await getAuthUserId(ctx);
+        if (!userId) return null;
+
+        const profile = await ctx.db
+            .query("profiles")
+            .withIndex("by_userId", (q) => q.eq("userId", userId))
+            .first();
+
+        return profile;
+    },
+});
+
+// Create profile for newly registered user
+export const createProfile = mutation({
     args: {
         name: v.string(),
-        email: v.optional(v.string()),
-        avatarUrl: v.optional(v.string()),
         timezone: v.optional(v.string()),
     },
     handler: async (ctx, args) => {
-        // Try to find existing user by email
-        if (args.email) {
-            const existingUser = await ctx.db
-                .query("users")
-                .withIndex("by_email", (q) => q.eq("email", args.email))
-                .first();
+        const userId = await getAuthUserId(ctx);
+        if (!userId) throw new Error("Not authenticated");
 
-            if (existingUser) {
-                return existingUser._id;
-            }
-        }
+        // Check if profile already exists
+        const existing = await ctx.db
+            .query("profiles")
+            .withIndex("by_userId", (q) => q.eq("userId", userId))
+            .first();
 
-        // Create new user
+        if (existing) return existing._id;
+
+        // Create new profile
         const now = Date.now();
-        const userId = await ctx.db.insert("users", {
+        const profileId = await ctx.db.insert("profiles", {
+            userId,
             name: args.name,
-            email: args.email,
-            avatarUrl: args.avatarUrl,
             xp: 0,
             level: 1,
             currentStreak: 0,
             longestStreak: 0,
-            streakFreezes: 1, // Start with one free freeze
+            streakFreezes: 1,
             timezone: args.timezone ?? "Europe/Berlin",
             badges: [],
             createdAt: now,
             updatedAt: now,
         });
 
-        return userId;
-    },
-});
-
-// Get user by ID
-export const get = query({
-    args: { userId: v.id("users") },
-    handler: async (ctx, args) => {
-        return await ctx.db.get(args.userId);
+        return profileId;
     },
 });
 
 // Add XP and handle level ups
 export const addXP = mutation({
     args: {
-        userId: v.id("users"),
         amount: v.number(),
     },
     handler: async (ctx, args) => {
-        const user = await ctx.db.get(args.userId);
-        if (!user) throw new Error("User not found");
+        const userId = await getAuthUserId(ctx);
+        if (!userId) throw new Error("Not authenticated");
 
-        const newXP = user.xp + args.amount;
+        const profile = await ctx.db
+            .query("profiles")
+            .withIndex("by_userId", (q) => q.eq("userId", userId))
+            .first();
 
-        // XP needed for next level: level * 100
-        // e.g., Level 1 needs 100 XP, Level 2 needs 200 XP, etc.
-        const xpNeededForNextLevel = user.level * 100;
+        if (!profile) throw new Error("Profile not found");
 
-        let newLevel = user.level;
+        const newXP = profile.xp + args.amount;
+
+        let newLevel = profile.level;
         let remainingXP = newXP;
 
-        // Check for level ups
+        // Check for level ups (XP per level = level * 100)
         while (remainingXP >= newLevel * 100) {
             remainingXP -= newLevel * 100;
             newLevel++;
         }
 
-        await ctx.db.patch(args.userId, {
+        await ctx.db.patch(profile._id, {
             xp: remainingXP,
             level: newLevel,
             updatedAt: Date.now(),
         });
 
-        return { newLevel, newXP: remainingXP, leveledUp: newLevel > user.level };
+        return { newLevel, newXP: remainingXP, leveledUp: newLevel > profile.level };
     },
 });
 
-// Update streak (call this on daily check-in)
+// Daily check-in
 export const checkIn = mutation({
     args: {
-        userId: v.id("users"),
-        date: v.string(), // ISO date string (YYYY-MM-DD)
+        date: v.string(),
     },
     handler: async (ctx, args) => {
-        const user = await ctx.db.get(args.userId);
-        if (!user) throw new Error("User not found");
+        const userId = await getAuthUserId(ctx);
+        if (!userId) throw new Error("Not authenticated");
+
+        const profile = await ctx.db
+            .query("profiles")
+            .withIndex("by_userId", (q) => q.eq("userId", userId))
+            .first();
+
+        if (!profile) throw new Error("Profile not found");
 
         // Check if already checked in today
         const existingStats = await ctx.db
             .query("dailyStats")
             .withIndex("by_user_date", (q) =>
-                q.eq("userId", args.userId).eq("date", args.date)
+                q.eq("userId", userId).eq("date", args.date)
             )
             .first();
 
         if (existingStats?.checkedIn) {
-            return { streak: user.currentStreak, isNewCheckIn: false };
+            return { streak: profile.currentStreak, isNewCheckIn: false };
         }
 
-        const lastDate = user.lastCheckInDate;
-        let newStreak = user.currentStreak;
+        const lastDate = profile.lastCheckInDate;
+        let newStreak = profile.currentStreak;
 
         if (!lastDate) {
-            // First check-in ever
             newStreak = 1;
         } else {
-            // Calculate days difference
             const lastDateObj = new Date(lastDate);
             const currentDateObj = new Date(args.date);
             const diffTime = currentDateObj.getTime() - lastDateObj.getTime();
             const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
 
             if (diffDays === 0) {
-                // Same day, streak continues
-                newStreak = user.currentStreak;
+                newStreak = profile.currentStreak;
             } else if (diffDays === 1) {
-                // Consecutive day
-                newStreak = user.currentStreak + 1;
+                newStreak = profile.currentStreak + 1;
             } else {
-                // Streak broken
                 newStreak = 1;
             }
         }
 
-        const newLongest = Math.max(newStreak, user.longestStreak);
+        const newLongest = Math.max(newStreak, profile.longestStreak);
 
-        // Update user streak
-        await ctx.db.patch(args.userId, {
+        await ctx.db.patch(profile._id, {
             currentStreak: newStreak,
             longestStreak: newLongest,
             lastCheckInDate: args.date,
             updatedAt: Date.now(),
         });
 
-        // Create or update dailyStats with checkedIn = true
+        // Create or update dailyStats
         if (existingStats) {
-            await ctx.db.patch(existingStats._id, {
-                checkedIn: true,
-            });
+            await ctx.db.patch(existingStats._id, { checkedIn: true });
         } else {
             await ctx.db.insert("dailyStats", {
-                userId: args.userId,
+                userId,
                 date: args.date,
                 wordsWritten: 0,
                 sessionsCount: 0,
@@ -163,4 +168,3 @@ export const checkIn = mutation({
         return { streak: newStreak, isNewCheckIn: true };
     },
 });
-

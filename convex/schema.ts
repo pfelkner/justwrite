@@ -1,11 +1,15 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
+import { authTables } from "@convex-dev/auth/server";
 
 export default defineSchema({
-    // User profile with gamification data
-    users: defineTable({
+    // Auth tables from Convex Auth
+    ...authTables,
+
+    // User profile with gamification data (linked to auth user)
+    profiles: defineTable({
+        userId: v.id("users"), // Links to auth users table
         name: v.string(),
-        email: v.optional(v.string()),
         avatarUrl: v.optional(v.string()),
 
         // Gamification
@@ -26,11 +30,11 @@ export default defineSchema({
         createdAt: v.number(),
         updatedAt: v.number(),
     })
-        .index("by_email", ["email"]),
+        .index("by_userId", ["userId"]),
 
     // Writing documents/projects
     documents: defineTable({
-        userId: v.id("users"),
+        userId: v.id("users"), // Now links to auth users table
         title: v.string(),
         content: v.string(), // Rich text as HTML or JSON
         wordCount: v.number(),

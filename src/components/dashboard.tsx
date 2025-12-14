@@ -4,10 +4,10 @@ import { api } from '../../convex/_generated/api'
 import type { Id, Doc } from '../../convex/_generated/dataModel'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
 import { Button } from './ui/button'
-import { Badge } from './ui/badge'
 import { Separator } from './ui/separator'
 import { StreakDisplay } from './streak-display'
 import { XPBar } from './xp-bar'
+import { StatsCard } from './stats-card'
 
 interface DashboardProps {
     profile: Doc<"profiles">
@@ -20,7 +20,6 @@ export function Dashboard({ profile, onOpenDocument }: DashboardProps) {
     const todayStats = useQuery(api.stats.getToday, {
         date: new Date().toISOString().split('T')[0],
     })
-    const totals = useQuery(api.stats.getTotals)
     const documents = useQuery(api.documents.listByUser)
     const createDocument = useMutation(api.documents.create)
 
@@ -44,13 +43,13 @@ export function Dashboard({ profile, onOpenDocument }: DashboardProps) {
             <header className="border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
                 <div className="container mx-auto px-4 py-4 flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                        <span className="text-2xl">✍️</span>
+                        <span className="text-2xl hidden md:inline">✍️</span>
                         <h1 className="text-xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
                             JustWrite
                         </h1>
                     </div>
-                    <div className="flex items-center gap-4">
-                        <StreakDisplay streak={profile.currentStreak} />
+                    <div className="flex items-center gap-2 md:gap-4">
+                        {profile.currentStreak >= 1 && <StreakDisplay streak={profile.currentStreak} />}
                         <XPBar xp={profile.xp} level={profile.level} />
                         <Button variant="ghost" size="sm" onClick={handleSignOut}>
                             Abmelden
@@ -106,36 +105,7 @@ export function Dashboard({ profile, onOpenDocument }: DashboardProps) {
                     </Card>
 
                     {/* Stats Summary Card */}
-                    <Card className="border-border/50">
-                        <CardHeader>
-                            <CardTitle className="flex items-center gap-2">
-                                <span>📊</span>
-                                Deine Stats
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-3">
-                            <div className="flex justify-between items-center">
-                                <span className="text-muted-foreground">Längster Streak</span>
-                                <Badge variant="secondary">{profile.longestStreak} Tage 🔥</Badge>
-                            </div>
-                            <div className="flex justify-between items-center">
-                                <span className="text-muted-foreground">Gesamt Wörter</span>
-                                <span className="font-mono">{totals?.totalWords?.toLocaleString() ?? 0}</span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                                <span className="text-muted-foreground">Sessions</span>
-                                <span className="font-mono">{totals?.totalSessions ?? 0}</span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                                <span className="text-muted-foreground">Aktive Tage</span>
-                                <span className="font-mono">{totals?.daysActive ?? 0}</span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                                <span className="text-muted-foreground">Streak Freezes</span>
-                                <Badge variant="outline">❄️ {profile.streakFreezes}</Badge>
-                            </div>
-                        </CardContent>
-                    </Card>
+                    <StatsCard profile={profile} />
 
                     {/* Documents Card */}
                     <Card className="md:col-span-3 border-border/50">

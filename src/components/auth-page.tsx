@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useAuthActions } from '@convex-dev/auth/react'
 import { Button } from './ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
+import { Input } from './ui/input'
 
 type AuthMode = 'signIn' | 'signUp'
 
@@ -57,11 +58,10 @@ export function AuthPage() {
                         {mode === 'signUp' && (
                             <div>
                                 <label className="block text-sm font-medium mb-1.5">Name</label>
-                                <input
+                                <Input
                                     type="text"
                                     value={name}
                                     onChange={(e) => setName(e.target.value)}
-                                    className="w-full px-3 py-2 rounded-md border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                                     placeholder="Dein Name"
                                     required
                                 />
@@ -70,11 +70,10 @@ export function AuthPage() {
 
                         <div>
                             <label className="block text-sm font-medium mb-1.5">E-Mail</label>
-                            <input
+                            <Input
                                 type="email"
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
-                                className="w-full px-3 py-2 rounded-md border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                                 placeholder="deine@email.de"
                                 required
                             />
@@ -82,11 +81,10 @@ export function AuthPage() {
 
                         <div>
                             <label className="block text-sm font-medium mb-1.5">Passwort</label>
-                            <input
+                            <Input
                                 type="password"
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
-                                className="w-full px-3 py-2 rounded-md border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                                 placeholder="••••••••"
                                 minLength={8}
                                 required

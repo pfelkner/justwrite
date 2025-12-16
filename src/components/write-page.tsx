@@ -5,6 +5,7 @@ import type { Id } from '../../convex/_generated/dataModel'
 import { Editor } from './editor'
 import { Button } from './ui/button'
 import { Card, CardContent } from './ui/card'
+import { useDebounce } from '../hooks/useDebounce'
 
 interface WritePageProps {
     documentId: Id<"documents">
@@ -18,23 +19,29 @@ export function WritePage({ documentId, onBack }: WritePageProps) {
     const recordStats = useMutation(api.stats.recordStats)
     const addXP = useMutation(api.users.addXP)
 
+    // Local state for immediate UI updates
     const [title, setTitle] = useState('')
-    const [localContent, setLocalContent] = useState<string | null>(null) // Local content state
+    const [localContent, setLocalContent] = useState<string | null>(null)
+    const [localWordCount, setLocalWordCount] = useState(0)
     const [isSaving, setIsSaving] = useState(false)
     const [lastSaved, setLastSaved] = useState<Date | null>(null)
     const [sessionWords, setSessionWords] = useState(0)
+
+    // Refs for session tracking (don't trigger re-renders)
     const sessionStartRef = useRef<number>(Date.now())
     const initialWordCountRef = useRef<number | null>(null)
-    const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-    const pendingContentRef = useRef<{ content: string; wordCount: number } | null>(null)
 
-    // Set initial title and content when document loads
+    // Debounce content for auto-save (waits 500ms after last change)
+    const debouncedContent = useDebounce(localContent, 500)
+    const debouncedWordCount = useDebounce(localWordCount, 500)
+
+    // Initialize state when document loads
     useEffect(() => {
         if (document) {
             setTitle(document.title)
-            // Only set local content on first load
             if (localContent === null) {
                 setLocalContent(document.content)
+                setLocalWordCount(document.wordCount)
             }
             if (initialWordCountRef.current === null) {
                 initialWordCountRef.current = document.wordCount
@@ -42,68 +49,42 @@ export function WritePage({ documentId, onBack }: WritePageProps) {
         }
     }, [document, localContent])
 
-    // Debounced save function
-    const debouncedSave = useCallback(async (content: string, wordCount: number) => {
-        // Clear any pending save
-        if (saveTimeoutRef.current) {
-            clearTimeout(saveTimeoutRef.current)
-        }
-
-        // Store pending content
-        pendingContentRef.current = { content, wordCount }
-
-        // Schedule save after 500ms of no typing
-        saveTimeoutRef.current = setTimeout(async () => {
-            if (pendingContentRef.current) {
-                setIsSaving(true)
-                try {
-                    await updateContent({
-                        documentId,
-                        content: pendingContentRef.current.content,
-                        wordCount: pendingContentRef.current.wordCount,
-                    })
-                    setLastSaved(new Date())
-                } finally {
-                    setIsSaving(false)
-                    pendingContentRef.current = null
-                }
-            }
-        }, 500)
-    }, [documentId, updateContent])
-
-    // Handle content updates from editor - update local state immediately, debounce save
-    const handleContentUpdate = useCallback((content: string, wordCount: number) => {
-        // Update local content immediately (no waiting)
-        setLocalContent(content)
-
-        // Track words written in this session
-        if (initialWordCountRef.current !== null) {
-            const wordsWrittenThisSession = Math.max(0, wordCount - initialWordCountRef.current)
-            setSessionWords(wordsWrittenThisSession)
-        }
-
-        // Debounced save to database
-        debouncedSave(content, wordCount)
-    }, [debouncedSave])
-
-    // Cleanup timeout on unmount and save any pending content
+    // Auto-save when debounced content changes
     useEffect(() => {
-        return () => {
-            if (saveTimeoutRef.current) {
-                clearTimeout(saveTimeoutRef.current)
-            }
-            // Save pending content immediately on unmount
-            if (pendingContentRef.current) {
-                updateContent({
+        // Skip if no local content yet or same as server
+        if (debouncedContent === null || debouncedContent === document?.content) {
+            return
+        }
+
+        const saveContent = async () => {
+            setIsSaving(true)
+            try {
+                await updateContent({
                     documentId,
-                    content: pendingContentRef.current.content,
-                    wordCount: pendingContentRef.current.wordCount,
+                    content: debouncedContent,
+                    wordCount: debouncedWordCount,
                 })
+                setLastSaved(new Date())
+            } finally {
+                setIsSaving(false)
             }
         }
-    }, [documentId, updateContent])
 
-    // Debounced title update
+        saveContent()
+    }, [debouncedContent, debouncedWordCount, documentId, updateContent, document?.content])
+
+    // Handle content updates from editor
+    const handleContentUpdate = useCallback((content: string, wordCount: number) => {
+        setLocalContent(content)
+        setLocalWordCount(wordCount)
+
+        // Track session words
+        if (initialWordCountRef.current !== null) {
+            setSessionWords(Math.max(0, wordCount - initialWordCountRef.current))
+        }
+    }, [])
+
+    // Handle title change
     const handleTitleChange = useCallback(async (newTitle: string) => {
         setTitle(newTitle)
         if (newTitle.trim() && newTitle !== document?.title) {
@@ -113,21 +94,18 @@ export function WritePage({ documentId, onBack }: WritePageProps) {
 
     // Save session stats when leaving
     const saveSessionStats = useCallback(async () => {
-        // Save any pending content first
-        if (pendingContentRef.current) {
+        // Save any unsaved content first
+        if (localContent && localContent !== document?.content) {
             await updateContent({
                 documentId,
-                content: pendingContentRef.current.content,
-                wordCount: pendingContentRef.current.wordCount,
+                content: localContent,
+                wordCount: localWordCount,
             })
-            pendingContentRef.current = null
         }
 
         if (sessionWords > 0) {
             const sessionMinutes = Math.round((Date.now() - sessionStartRef.current) / 60000)
             const today = new Date().toISOString().split('T')[0]
-
-            // XP: 1 XP per 10 words, max 50 XP per session
             const xpEarned = Math.min(50, Math.floor(sessionWords / 10))
 
             await recordStats({
@@ -141,14 +119,10 @@ export function WritePage({ documentId, onBack }: WritePageProps) {
                 await addXP({ amount: xpEarned })
             }
         }
-    }, [sessionWords, recordStats, addXP, documentId, updateContent])
+    }, [sessionWords, localContent, localWordCount, document?.content, documentId, updateContent, recordStats, addXP])
 
-    // Handle back button with stats saving
+    // Handle back button
     const handleBack = async () => {
-        // Clear pending timeout
-        if (saveTimeoutRef.current) {
-            clearTimeout(saveTimeoutRef.current)
-        }
         await saveSessionStats()
         onBack()
     }
@@ -161,7 +135,6 @@ export function WritePage({ documentId, onBack }: WritePageProps) {
         )
     }
 
-    // Use local content if available, otherwise use document content
     const editorContent = localContent ?? document.content
 
     return (
@@ -215,7 +188,7 @@ export function WritePage({ documentId, onBack }: WritePageProps) {
                     </CardContent>
                 </Card>
 
-                {/* Editor - uses local content to avoid sync loop */}
+                {/* Editor */}
                 <Editor
                     content={editorContent}
                     onUpdate={handleContentUpdate}

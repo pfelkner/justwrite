@@ -20,12 +20,10 @@ export function useDebounce<T>(value: T, delay: number): T {
     const [debouncedValue, setDebouncedValue] = useState<T>(value)
 
     useEffect(() => {
-        // Timer setzen der nach `delay` ms den Wert aktualisiert
         const timer = setTimeout(() => {
             setDebouncedValue(value)
         }, delay)
 
-        // Cleanup: Timer löschen wenn sich `value` ändert oder Komponente unmountet
         return () => {
             clearTimeout(timer)
         }

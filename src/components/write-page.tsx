@@ -6,6 +6,7 @@ import { Editor } from './editor'
 import { Button } from './ui/button'
 import { Card, CardContent } from './ui/card'
 import { useDebounce } from '../hooks/useDebounce'
+import { getTodayISO, formatTime } from '../lib/date'
 
 interface WritePageProps {
     documentId: Id<"documents">
@@ -105,7 +106,7 @@ export function WritePage({ documentId, onBack }: WritePageProps) {
 
         if (sessionWords > 0) {
             const sessionMinutes = Math.round((Date.now() - sessionStartRef.current) / 60000)
-            const today = new Date().toISOString().split('T')[0]
+            const today = getTodayISO()
             const xpEarned = Math.min(50, Math.floor(sessionWords / 10))
 
             await recordStats({
@@ -159,7 +160,7 @@ export function WritePage({ documentId, onBack }: WritePageProps) {
                         {isSaving ? (
                             <span className="animate-pulse">Speichert...</span>
                         ) : lastSaved ? (
-                            <span>Gespeichert um {lastSaved.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}</span>
+                            <span>Gespeichert um {formatTime(lastSaved)}</span>
                         ) : null}
                     </div>
                 </div>

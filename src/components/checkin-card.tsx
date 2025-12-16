@@ -3,16 +3,16 @@ import { api } from '../../convex/_generated/api'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
 import { Button } from './ui/button'
 import { Separator } from './ui/separator'
+import { getTodayISO } from '../lib/date'
 
 export function CheckInCard() {
     const checkIn = useMutation(api.users.checkIn)
     const todayStats = useQuery(api.stats.getToday, {
-        date: new Date().toISOString().split('T')[0],
+        date: getTodayISO(),
     })
 
     const handleCheckIn = async () => {
-        const today = new Date().toISOString().split('T')[0]
-        await checkIn({ date: today })
+        await checkIn({ date: getTodayISO() })
     }
 
     return (

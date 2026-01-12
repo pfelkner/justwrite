@@ -1,12 +1,18 @@
 import { useCallback, useEffect, useState, useRef } from 'react'
-import { useMutation, useQuery } from 'convex/react'
-import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
 import { Editor } from './editor'
 import { Button } from './ui/button'
 import { Card, CardContent } from './ui/card'
 import { useDebounce } from '../hooks/useDebounce'
 import { getTodayISO, formatTime } from '../lib/date'
+import { useOfflineDocument } from '../hooks/useOfflineQuery'
+import {
+    useOfflineUpdateContent,
+    useOfflineUpdateTitle,
+    useOfflineRecordStats,
+    useOfflineAddXP
+} from '../hooks/useOfflineMutation'
+import { useOffline } from '../contexts/OfflineContext'
 
 interface WritePageProps {
     documentId: Id<"documents">
@@ -14,11 +20,14 @@ interface WritePageProps {
 }
 
 export function WritePage({ documentId, onBack }: WritePageProps) {
-    const document = useQuery(api.documents.get, { documentId })
-    const updateContent = useMutation(api.documents.updateContent)
-    const updateTitle = useMutation(api.documents.updateTitle)
-    const recordStats = useMutation(api.stats.recordStats)
-    const addXP = useMutation(api.users.addXP)
+    const { isOnline } = useOffline()
+
+    // Use offline-aware hooks
+    const { data: document, isLoading, isOffline, isCached } = useOfflineDocument(documentId)
+    const { mutate: updateContent } = useOfflineUpdateContent()
+    const { mutate: updateTitle } = useOfflineUpdateTitle()
+    const { mutate: recordStats } = useOfflineRecordStats()
+    const { mutate: addXP } = useOfflineAddXP()
 
     // Local state for immediate UI updates
     const [title, setTitle] = useState('')
@@ -61,7 +70,7 @@ export function WritePage({ documentId, onBack }: WritePageProps) {
             setIsSaving(true)
             try {
                 await updateContent({
-                    documentId,
+                    documentId: documentId as string,
                     content: debouncedContent,
                     wordCount: debouncedWordCount,
                 })
@@ -89,7 +98,7 @@ export function WritePage({ documentId, onBack }: WritePageProps) {
     const handleTitleChange = useCallback(async (newTitle: string) => {
         setTitle(newTitle)
         if (newTitle.trim() && newTitle !== document?.title) {
-            await updateTitle({ documentId, title: newTitle })
+            await updateTitle({ documentId: documentId as string, title: newTitle })
         }
     }, [documentId, document?.title, updateTitle])
 
@@ -98,7 +107,7 @@ export function WritePage({ documentId, onBack }: WritePageProps) {
         // Save any unsaved content first
         if (localContent && localContent !== document?.content) {
             await updateContent({
-                documentId,
+                documentId: documentId as string,
                 content: localContent,
                 wordCount: localWordCount,
             })
@@ -128,10 +137,12 @@ export function WritePage({ documentId, onBack }: WritePageProps) {
         onBack()
     }
 
-    if (!document) {
+    if (isLoading || !document) {
         return (
             <div className="min-h-screen bg-background flex items-center justify-center">
-                <div className="animate-pulse text-muted-foreground">Dokument wird geladen...</div>
+                <div className="animate-pulse text-muted-foreground">
+                    {isCached ? 'Offline-Dokument wird geladen...' : 'Dokument wird geladen...'}
+                </div>
             </div>
         )
     }
@@ -154,11 +165,20 @@ export function WritePage({ documentId, onBack }: WritePageProps) {
                             className="text-lg font-semibold bg-transparent border-none focus:outline-none focus:ring-0 w-64"
                             placeholder="Dokumenttitel..."
                         />
+                        {/* Offline indicator in header */}
+                        {isOffline && (
+                            <span className="text-xs text-yellow-500 flex items-center gap-1">
+                                <span className="h-2 w-2 rounded-full bg-yellow-500 animate-pulse" />
+                                Offline
+                            </span>
+                        )}
                     </div>
 
                     <div className="flex items-center gap-4 text-sm text-muted-foreground">
                         {isSaving ? (
-                            <span className="animate-pulse">Speichert...</span>
+                            <span className="animate-pulse">
+                                {isOnline ? 'Speichert...' : 'Wird später synchronisiert...'}
+                            </span>
                         ) : lastSaved ? (
                             <span>Gespeichert um {formatTime(lastSaved)}</span>
                         ) : null}

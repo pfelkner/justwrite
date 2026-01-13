@@ -170,3 +170,139 @@ export function useOfflineAddXP(): UseOfflineMutationResult<{ amount: number }> 
 
     return { mutate, isPending, wasQueued }
 }
+
+/**
+ * Offline-aware mutation for creating a new document
+ * Returns a temporary local ID when offline, which gets replaced on sync
+ */
+export function useOfflineCreateDocument(): {
+    mutate: (args: { title: string }) => Promise<string>
+    isPending: boolean
+    wasQueued: boolean
+} {
+    const { isOnline } = useOffline()
+    const [isPending, setIsPending] = useState(false)
+    const [wasQueued, setWasQueued] = useState(false)
+
+    const convexMutate = useMutation(api.documents.create)
+
+    const mutate = useCallback(
+        async (args: { title: string }): Promise<string> => {
+            setIsPending(true)
+            setWasQueued(false)
+
+            try {
+                if (isOnline) {
+                    const docId = await convexMutate(args)
+                    return docId
+                } else {
+                    // Generate a temporary local ID for offline documents
+                    const tempId = `temp_${crypto.randomUUID()}`
+                    const now = Date.now()
+
+                    // Create a local document object
+                    const localDoc = {
+                        _id: tempId,
+                        _creationTime: now,
+                        userId: 'local', // Will be set correctly on sync
+                        title: args.title,
+                        content: '',
+                        wordCount: 0,
+                        isArchived: false,
+                        createdAt: now,
+                        updatedAt: now,
+                    }
+
+                    // Queue the mutation with the title
+                    await queueMutation('documents.create', {
+                        title: args.title,
+                        _tempId: tempId, // Store temp ID for later mapping
+                    })
+                    setWasQueued(true)
+
+                    // Add to documents cache optimistically
+                    await applyOptimisticUpdate('documents', (current: unknown) => {
+                        const docs = (current as unknown[]) || []
+                        return [localDoc, ...docs]
+                    })
+
+                    // Also cache the individual document
+                    await applyOptimisticUpdate(`document:${tempId}`, () => localDoc)
+
+                    return tempId
+                }
+            } finally {
+                setIsPending(false)
+            }
+        },
+        [isOnline, convexMutate]
+    )
+
+    return { mutate, isPending, wasQueued }
+}
+
+/**
+ * Offline-aware mutation for daily check-in
+ */
+export function useOfflineCheckIn(): UseOfflineMutationResult<{ date: string }> {
+    const { isOnline } = useOffline()
+    const [isPending, setIsPending] = useState(false)
+    const [wasQueued, setWasQueued] = useState(false)
+
+    const convexMutate = useMutation(api.users.checkIn)
+
+    const mutate = useCallback(
+        async (args: { date: string }) => {
+            setIsPending(true)
+            setWasQueued(false)
+
+            try {
+                if (isOnline) {
+                    await convexMutate(args)
+                } else {
+                    await queueMutation('users.checkIn', args)
+                    setWasQueued(true)
+
+                    // Optimistically update today's stats to show checked in
+                    await applyOptimisticUpdate(`stats:today:${args.date}`, (current: unknown) => {
+                        if (current) {
+                            return { ...(current as object), checkedIn: true }
+                        }
+                        // Create initial stats if none exist
+                        return {
+                            date: args.date,
+                            wordsWritten: 0,
+                            sessionsCount: 0,
+                            minutesWritten: 0,
+                            xpEarned: 0,
+                            checkedIn: true,
+                        }
+                    })
+
+                    // Optimistically update profile streak
+                    await applyOptimisticUpdate('profile', (current: unknown) => {
+                        if (!current) return current
+                        const profile = current as {
+                            currentStreak: number
+                            longestStreak: number
+                            lastCheckInDate?: string
+                        }
+                        const newStreak = profile.currentStreak + 1
+                        return {
+                            ...profile,
+                            currentStreak: newStreak,
+                            longestStreak: Math.max(newStreak, profile.longestStreak),
+                            lastCheckInDate: args.date,
+                        }
+                    })
+                }
+            } finally {
+                setIsPending(false)
+            }
+        },
+        [isOnline, convexMutate]
+    )
+
+    return { mutate, isPending, wasQueued }
+}
+

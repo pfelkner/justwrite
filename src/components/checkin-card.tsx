@@ -1,18 +1,19 @@
-import { useMutation, useQuery } from 'convex/react'
-import { api } from '../../convex/_generated/api'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
 import { Button } from './ui/button'
 import { Separator } from './ui/separator'
 import { getTodayISO } from '../lib/date'
+import { useOfflineTodayStats } from '../hooks/useOfflineQuery'
+import { useOfflineCheckIn } from '../hooks/useOfflineMutation'
+import { useOffline } from '../contexts/OfflineContext'
 
 export function CheckInCard() {
-    const checkIn = useMutation(api.users.checkIn)
-    const todayStats = useQuery(api.stats.getToday, {
-        date: getTodayISO(),
-    })
+    const today = getTodayISO()
+    const { data: todayStats, isLoading, isOffline } = useOfflineTodayStats(today)
+    const { mutate: checkIn, isPending: isCheckingIn } = useOfflineCheckIn()
+    const { isOnline } = useOffline()
 
     const handleCheckIn = async () => {
-        await checkIn({ date: getTodayISO() })
+        await checkIn({ date: today })
     }
 
     return (
@@ -21,10 +22,15 @@ export function CheckInCard() {
                 <CardTitle className="flex items-center gap-2">
                     <span>🎯</span>
                     Täglicher Check-in
+                    {isOffline && (
+                        <span className="text-xs text-yellow-500 font-normal">(Offline)</span>
+                    )}
                 </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-                {todayStats?.checkedIn ? (
+                {isLoading ? (
+                    <div className="animate-pulse text-muted-foreground">Laden...</div>
+                ) : todayStats?.checkedIn ? (
                     <div className="flex items-center gap-3 text-green-500">
                         <span className="text-2xl">✅</span>
                         <span className="font-medium">Heute bereits eingecheckt!</span>
@@ -34,8 +40,14 @@ export function CheckInCard() {
                         onClick={handleCheckIn}
                         className="w-full bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 transition-all"
                         size="lg"
+                        disabled={isCheckingIn}
                     >
-                        Jetzt einchecken & Streak erhalten! 🔥
+                        {isCheckingIn
+                            ? 'Wird eingecheckt...'
+                            : isOnline
+                                ? 'Jetzt einchecken & Streak erhalten! 🔥'
+                                : 'Offline einchecken 🔥'
+                        }
                     </Button>
                 )}
 

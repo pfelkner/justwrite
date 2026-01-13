@@ -1,15 +1,16 @@
-import { useQuery } from 'convex/react'
-import { api } from '../../convex/_generated/api'
 import type { Doc } from '../../convex/_generated/dataModel'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
 import { Badge } from './ui/badge'
+import { useOfflineTotals } from '../hooks/useOfflineQuery'
+import { useOffline } from '../contexts/OfflineContext'
 
 interface StatsCardProps {
     profile: Doc<"profiles">
 }
 
 export function StatsCard({ profile }: StatsCardProps) {
-    const totals = useQuery(api.stats.getTotals)
+    const { data: totals, isLoading, isOffline } = useOfflineTotals()
+    const { } = useOffline()
 
     return (
         <Card className="border-border/50">
@@ -17,6 +18,9 @@ export function StatsCard({ profile }: StatsCardProps) {
                 <CardTitle className="flex items-center gap-2">
                     <span>📊</span>
                     Deine Stats
+                    {isOffline && (
+                        <span className="text-xs text-yellow-500 font-normal">(Offline)</span>
+                    )}
                 </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -26,15 +30,21 @@ export function StatsCard({ profile }: StatsCardProps) {
                 </div>
                 <div className="flex justify-between items-center">
                     <span className="text-muted-foreground">Gesamt Wörter</span>
-                    <span className="font-mono">{totals?.totalWords?.toLocaleString() ?? 0}</span>
+                    <span className="font-mono">
+                        {isLoading ? '...' : totals?.totalWords?.toLocaleString() ?? 0}
+                    </span>
                 </div>
                 <div className="flex justify-between items-center">
                     <span className="text-muted-foreground">Sessions</span>
-                    <span className="font-mono">{totals?.totalSessions ?? 0}</span>
+                    <span className="font-mono">
+                        {isLoading ? '...' : totals?.totalSessions ?? 0}
+                    </span>
                 </div>
                 <div className="flex justify-between items-center">
                     <span className="text-muted-foreground">Aktive Tage</span>
-                    <span className="font-mono">{totals?.daysActive ?? 0}</span>
+                    <span className="font-mono">
+                        {isLoading ? '...' : totals?.daysActive ?? 0}
+                    </span>
                 </div>
                 <div className="flex justify-between items-center">
                     <span className="text-muted-foreground">Streak Freezes</span>

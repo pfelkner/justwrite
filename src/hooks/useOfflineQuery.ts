@@ -164,3 +164,98 @@ export function useOfflineDocument(
         isCached: !isOnline && cachedData !== undefined,
     }
 }
+
+/**
+ * Offline-aware hook for fetching today's stats
+ */
+export function useOfflineTodayStats(date: string): UseOfflineQueryResult<typeof api.stats.getToday._returnType> {
+    const { isOnline } = useOffline()
+    const hasHydratedRef = useRef(false)
+    const queryKey = `stats:today:${date}`
+
+    const convexData = useQuery(api.stats.getToday, isOnline ? { date } : 'skip')
+
+    const cachedData = useLiveQuery(
+        async () => {
+            if (isOnline && convexData !== undefined) {
+                return undefined
+            }
+            const cached = await offlineDb.cachedData.get(queryKey)
+            return cached?.data
+        },
+        [isOnline, queryKey, convexData],
+        undefined
+    )
+
+    useEffect(() => {
+        if (isOnline && convexData !== undefined) {
+            persistQueryResult(queryKey, convexData)
+            hasHydratedRef.current = true
+        }
+    }, [isOnline, convexData, queryKey])
+
+    useEffect(() => {
+        if (!isOnline && !hasHydratedRef.current) {
+            getCachedData(queryKey).then(() => {
+                hasHydratedRef.current = true
+            })
+        }
+    }, [isOnline, queryKey])
+
+    const data = isOnline ? convexData : cachedData
+
+    return {
+        data: data as typeof api.stats.getToday._returnType | undefined,
+        isLoading: isOnline ? convexData === undefined : cachedData === undefined && !hasHydratedRef.current,
+        isOffline: !isOnline,
+        isCached: !isOnline && cachedData !== undefined,
+    }
+}
+
+/**
+ * Offline-aware hook for fetching total stats
+ */
+export function useOfflineTotals(): UseOfflineQueryResult<typeof api.stats.getTotals._returnType> {
+    const { isOnline } = useOffline()
+    const hasHydratedRef = useRef(false)
+    const queryKey = 'stats:totals'
+
+    const convexData = useQuery(api.stats.getTotals, isOnline ? {} : 'skip')
+
+    const cachedData = useLiveQuery(
+        async () => {
+            if (isOnline && convexData !== undefined) {
+                return undefined
+            }
+            const cached = await offlineDb.cachedData.get(queryKey)
+            return cached?.data
+        },
+        [isOnline, queryKey, convexData],
+        undefined
+    )
+
+    useEffect(() => {
+        if (isOnline && convexData !== undefined) {
+            persistQueryResult(queryKey, convexData)
+            hasHydratedRef.current = true
+        }
+    }, [isOnline, convexData, queryKey])
+
+    useEffect(() => {
+        if (!isOnline && !hasHydratedRef.current) {
+            getCachedData(queryKey).then(() => {
+                hasHydratedRef.current = true
+            })
+        }
+    }, [isOnline, queryKey])
+
+    const data = isOnline ? convexData : cachedData
+
+    return {
+        data: data as typeof api.stats.getTotals._returnType | undefined,
+        isLoading: isOnline ? convexData === undefined : cachedData === undefined && !hasHydratedRef.current,
+        isOffline: !isOnline,
+        isCached: !isOnline && cachedData !== undefined,
+    }
+}
+

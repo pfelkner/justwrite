@@ -77,12 +77,24 @@ export async function syncPendingMutations(): Promise<void> {
             // Mark as syncing
             await markMutationSyncing(mutation.id)
 
+            // Prepare payload - remove internal fields like _tempId
+            const payload = { ...mutation.payload }
+            const tempId = payload._tempId as string | undefined
+            delete payload._tempId
+
             // Execute the mutation
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            await (convexClient as any).mutation(mutationFn, mutation.payload)
+            await (convexClient as any).mutation(mutationFn, payload)
 
             // Success - remove from queue
             await removeMutation(mutation.id)
+
+            // Special handling for document creation - clear temp document cache
+            if (mutation.type === 'documents.create' && tempId) {
+                await clearCachedData(`document:${tempId}`)
+                // Clear documents list to force fresh fetch
+                await clearCachedData('documents')
+            }
 
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error'
@@ -94,6 +106,14 @@ export async function syncPendingMutations(): Promise<void> {
             const affectedKeys = getAffectedCacheKeys(mutation.type)
             for (const key of affectedKeys) {
                 await clearCachedData(key)
+            }
+
+            // Special handling for document creation failures - remove temp document
+            if (mutation.type === 'documents.create') {
+                const tempId = mutation.payload._tempId as string | undefined
+                if (tempId) {
+                    await clearCachedData(`document:${tempId}`)
+                }
             }
 
             // Stop processing - don't continue with subsequent mutations

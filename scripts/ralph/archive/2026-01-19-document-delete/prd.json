@@ -1,0 +1,121 @@
+{
+  "project": "JustWrite",
+  "branchName": "ralph/document-delete",
+  "description": "Document Delete Feature - Enable users to permanently delete documents with confirmation dialogs, hover/long-press interactions, and swipe-to-delete on mobile",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Add delete mutation to backend",
+      "description": "As a developer, I need a hard delete mutation so documents are permanently removed from the database.",
+      "acceptanceCriteria": [
+        "Add `remove` mutation to `convex/documents.ts`",
+        "Mutation validates user owns the document before deleting",
+        "Mutation permanently deletes the document using `ctx.db.delete()`",
+        "Returns success/failure indication",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "Create reusable confirmation dialog component",
+      "description": "As a developer, I need a reusable confirmation dialog component so we can use it for delete actions and future destructive operations.",
+      "acceptanceCriteria": [
+        "Create `src/components/ui/confirm-dialog.tsx` component",
+        "Component accepts props: `open`, `onOpenChange`, `title`, `description`, `confirmLabel`, `cancelLabel`, `onConfirm`, `variant` (default/destructive)",
+        "Destructive variant shows red confirm button using `buttonVariants({ variant: \"destructive\" })`",
+        "Dialog is accessible (proper focus management, keyboard navigation)",
+        "Uses existing shadcn `AlertDialog` component from `src/components/ui/alert-dialog.tsx`",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "Add delete button with hover reveal on document cards",
+      "description": "As a user, I want to see a delete icon when hovering over a document card so I can initiate deletion.",
+      "acceptanceCriteria": [
+        "Trash icon appears in top-right corner of card on hover (desktop)",
+        "Icon uses Lucide Trash2 icon",
+        "Icon has hover state (color change from muted-foreground to destructive red)",
+        "Clicking icon triggers confirmation dialog (does NOT open document)",
+        "Click event properly stops propagation to prevent card click",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 3,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "Implement mobile long-press to reveal delete",
+      "description": "As a mobile user, I want to long-press on a document card to reveal the delete option since hover is not available on touch devices.",
+      "acceptanceCriteria": [
+        "Long-press (500ms) on card reveals delete icon or triggers dialog directly",
+        "Visual feedback during long-press (subtle scale/opacity change)",
+        "Works on touch devices (test in browser device emulation)",
+        "Does not interfere with normal tap to open document",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 4,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "Implement swipe-to-delete gesture on mobile",
+      "description": "As a mobile user, I want to swipe a document card from right to left to trigger the delete confirmation dialog for a native-like experience.",
+      "acceptanceCriteria": [
+        "Full swipe (>50% of card width) from right-to-left triggers confirmation dialog",
+        "Partial swipe reveals red delete indicator behind card",
+        "Card animates back to position if swipe is cancelled",
+        "Swipe only works horizontally (does not conflict with vertical scroll)",
+        "Works in PWA context on mobile browsers",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 5,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "Wire delete confirmation to backend",
+      "description": "As a user, when I confirm deletion in the dialog, the document should be permanently deleted.",
+      "acceptanceCriteria": [
+        "Confirming dialog calls `documents.remove` mutation",
+        "Document disappears from list immediately (optimistic UI or refetch)",
+        "Dialog closes after successful deletion",
+        "Error state shows if deletion fails",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 6,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-007",
+      "title": "Add delete animations and polish",
+      "description": "As a user, I want smooth animations when deleting documents so the experience feels polished and premium.",
+      "acceptanceCriteria": [
+        "Card fades out and collapses when deleted",
+        "Other cards smoothly reflow to fill the gap",
+        "Delete icon has smooth fade-in on hover",
+        "Dialog has appropriate enter/exit animations",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 7,
+      "passes": true,
+      "notes": ""
+    }
+  ]
+}

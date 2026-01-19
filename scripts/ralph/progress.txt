@@ -1,0 +1,89 @@
+# Ralph Progress Log
+Started: 2026-01-18
+
+## Codebase Patterns
+- Migrations: IF NOT EXISTS
+- Types: Export from actions.ts
+- Convex Mutations: Auth with `getAuthUserId(ctx)`, throw "Not authenticated" / "Not authorized"
+- Convex Delete: Use `ctx.db.delete(id)` for hard delete, `ctx.db.patch` with `isArchived: true` for soft delete
+- Typecheck: `npx tsc --noEmit` (no npm script)
+- Package manager: pnpm (not npm)
+- Tests: vitest (`npx vitest run`)
+
+## Key Files
+- db/schema.ts
+- app/auth/actions.ts
+- convex/documents.ts - mutations for document CRUD
+---
+
+## 2026-01-19 - US-001
+- Implemented `remove` mutation in convex/documents.ts for permanent document deletion
+- Files changed: convex/documents.ts
+- **Learnings:**
+  - Convex mutations follow consistent auth pattern: getAuthUserId -> check null -> fetch doc -> check ownership
+  - Hard delete uses ctx.db.delete(), soft delete uses ctx.db.patch with isArchived flag
+  - No existing unit test framework for Convex mutations in project
+---
+
+## 2026-01-19 - US-002
+- Installed AlertDialog component via shadcn
+- Files changed: src/components/ui/alert-dialog.tsx (created)
+- **Learnings:**
+  - shadcn CLI: `npx shadcn@latest add <component> -y` for non-interactive
+  - AlertDialog exports: AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader, AlertDialogFooter, AlertDialogTitle, AlertDialogDescription, AlertDialogAction, AlertDialogCancel
+---
+
+## 2026-01-19 - US-003
+- Created useIsMobile hook for viewport detection
+- Set up vitest testing framework for the project
+- Files changed: src/hooks/useIsMobile.ts, src/hooks/useIsMobile.test.ts, vite.config.ts, package.json, pnpm-lock.yaml
+- **Learnings:**
+  - Use pnpm instead of npm (pnpm-lock.yaml exists)
+  - Vitest config can be embedded in vite.config.ts: `test: { environment: 'jsdom', globals: true }`
+  - React hooks test: use renderHook from @testing-library/react, act() for state updates
+  - Window resize testing: mock innerWidth with Object.defineProperty, dispatch new Event('resize')
+---
+
+## 2026-01-19 - US-004
+- Created DeleteConfirmDialog component with German text
+- Files changed: src/components/delete-confirm-dialog.tsx (created)
+- **Learnings:**
+  - AlertDialog controlled via `open` and `onOpenChange` props
+  - Prevent close during loading by checking isDeleting in onOpenChange handler
+  - Destructive button styling: `className="bg-destructive text-white hover:bg-destructive/90"`
+---
+
+## 2026-01-19 - US-005
+- Created DocumentCard component with hover-reveal delete button
+- Files changed: src/components/document-card.tsx (created)
+- **Learnings:**
+  - Use `group` class on parent for hover state propagation
+  - Show/hide with `opacity-0 group-hover:opacity-100 transition-opacity`
+  - Lucide icons: `<Trash2 className="size-4" />`
+  - Prevent parent click: `e.stopPropagation()` in child click handler
+  - Button sizes: icon-sm = size-8
+---
+
+## 2026-01-19 - US-006
+- Added mobile swipe-to-delete gesture with Framer Motion
+- Files changed: src/components/document-card.tsx (modified), src/components/document-card.test.tsx (created)
+- **Learnings:**
+  - Framer Motion: useMotionValue(0) for x position, useTransform for derived values like background color
+  - Swipe: drag="x", dragConstraints={{ left: 0, right: 0 }} to snap back
+  - touch-pan-y CSS class allows vertical scroll while enabling horizontal swipe
+  - Click vs swipe: check Math.abs(x.get()) < 10 to distinguish tap from drag
+  - Red tint on swipe: useTransform maps x position to rgba color interpolation
+---
+
+## 2026-01-19 - US-007
+- Wired up DocumentsCard with animations and full deletion flow
+- Files changed: src/components/documents-card.tsx (modified)
+- **Learnings:**
+  - AnimatePresence mode="popLayout" for smooth reflow when items exit
+  - Each animated child needs key prop for AnimatePresence to track
+  - motion.div with layout prop enables automatic layout animations
+  - Exit animation: exit={{ opacity: 0, scale: 0.8, transition: { duration: 0.2 } }}
+  - State pattern for delete flow: deleteTarget (Id | null), isDeleting (boolean)
+  - Use Fragment (<></>) when component returns multiple sibling elements
+---
+

@@ -1,0 +1,1 @@
+Setup todowrite so it creates 10 todo items, each trying to read and follow the instructions from scripts/ralph/prompt.md

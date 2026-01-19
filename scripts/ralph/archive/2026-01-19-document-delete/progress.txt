@@ -1,0 +1,66 @@
+# Ralph Progress Log
+Started: 2026-01-18
+
+## Codebase Patterns
+- Migrations: IF NOT EXISTS
+- Types: Export from actions.ts
+
+## Key Files
+- db/schema.ts
+- app/auth/actions.ts
+---
+
+## 2026-01-19 - US-001
+- Implemented hard delete mutation for documents
+- Files changed: convex/documents.ts
+- **Learnings:**
+  - Used ctx.db.delete() for permanent deletion
+  - Followed existing auth and ownership validation patterns
+  - Mutations should return success indicators
+
+## 2026-01-19 - US-002
+- Created reusable ConfirmDialog component with variant support
+- Files changed: src/components/ui/confirm-dialog.tsx
+- **Learnings:**
+  - Built on Radix AlertDialog for accessibility
+  - Used cva for variant styling (destructive red for confirm button)
+  - Followed shadcn patterns for component exports and props
+
+## 2026-01-19 - US-003
+- Added delete icon with hover reveal and confirmation dialog trigger
+- Files changed: src/components/documents-card.tsx
+- **Learnings:**
+  - Used group-hover for reveal effects
+  - Absolute positioning for icon placement
+  - stopPropagation to prevent card click when deleting
+
+## 2026-01-19 - US-004
+- Added long-press gesture for mobile delete reveal with visual feedback
+- Files changed: src/components/documents-card.tsx
+- **Learnings:**
+  - Implemented 500ms timeout for long-press detection
+  - Used onTouchStart/End/Move to handle touch gestures
+  - Added scale effect for press feedback
+
+## 2026-01-19 - US-005
+- Implemented swipe-to-delete with partial reveal and full swipe trigger
+- Files changed: src/components/documents-card.tsx
+- **Learnings:**
+  - Touch event tracking for swipe gestures
+  - Transform translateX for swipe animation
+  - Conditional background reveal during swipe
+
+## 2026-01-19 - US-006
+- Connected delete confirmation dialog to remove mutation
+- Files changed: src/components/documents-card.tsx
+- **Learnings:**
+  - Integrated Convex mutations in React components
+  - Error handling for async operations in UI
+
+
+## 2026-01-19 - US-007
+- Added smooth transitions for delete interactions and animations
+- Files changed: src/components/documents-card.tsx
+- **Learnings:**
+  - Tailwind transition classes for polished UI feedback
+  - Natural reflow on list updates after deletion

@@ -1,0 +1,124 @@
+{
+    "project": "JustWrite",
+    "branchName": "ralph/document-deletion",
+    "description": "Document Deletion Feature - Allow users to permanently delete documents with platform-specific UX (hover on desktop, swipe on mobile) and confirmation dialogs",
+    "userStories": [
+        {
+            "id": "US-001",
+            "title": "Add hard delete mutation to backend",
+            "description": "As a developer, I need a backend mutation to permanently delete documents so the feature has API support.",
+            "acceptanceCriteria": [
+                "Add `remove` mutation to `convex/documents.ts`",
+                "Use `ctx.db.delete()` for permanent deletion (not soft delete)",
+                "Follow same auth pattern as existing `archive` mutation (owner-only)",
+                "Typecheck passes"
+            ],
+            "priority": 1,
+            "passes": true,
+            "notes": ""
+        },
+        {
+            "id": "US-002",
+            "title": "Add AlertDialog component",
+            "description": "As a developer, I need an AlertDialog component for the confirmation modal.",
+            "acceptanceCriteria": [
+                "Install AlertDialog via `npx shadcn@latest add alert-dialog`",
+                "Component created at `src/components/ui/alert-dialog.tsx`",
+                "Component integrates with existing shadcn setup",
+                "Typecheck passes"
+            ],
+            "priority": 2,
+            "passes": true,
+            "notes": ""
+        },
+        {
+            "id": "US-003",
+            "title": "Create useIsMobile hook",
+            "description": "As a developer, I need to detect mobile vs desktop viewport to show the appropriate deletion UX.",
+            "acceptanceCriteria": [
+                "Create `src/hooks/useIsMobile.ts`",
+                "Returns `true` when viewport width < 768px (Tailwind's `md` breakpoint)",
+                "Includes resize event listener with cleanup",
+                "Typecheck passes",
+                "Unit tests pass"
+            ],
+            "priority": 3,
+            "passes": true,
+            "notes": ""
+        },
+        {
+            "id": "US-004",
+            "title": "Create delete confirmation dialog",
+            "description": "As a user, I want to confirm before deleting so I don't accidentally lose documents.",
+            "acceptanceCriteria": [
+                "Create `src/components/delete-confirm-dialog.tsx`",
+                "Controlled component with `open`, `onOpenChange`, `onConfirm` props",
+                "German text: \"Dokument löschen?\" as title",
+                "Shows `isDeleting` loading state on confirm button",
+                "Destructive (red) styling on confirm button",
+                "Dialog cannot close while `isDeleting` is true",
+                "Typecheck passes",
+                "Verify in browser using dev-browser skill"
+            ],
+            "priority": 4,
+            "passes": true,
+            "notes": "Browser verification pending - no dev-browser skill available"
+        },
+        {
+            "id": "US-005",
+            "title": "Create DocumentCard with desktop delete button",
+            "description": "As a desktop user, I want to see a delete button when hovering over a document card so I can quickly delete unwanted documents.",
+            "acceptanceCriteria": [
+                "Create `src/components/document-card.tsx`",
+                "Extract individual card UI from `documents-card.tsx`",
+                "Ghost delete button with `Trash2` icon in top-right corner",
+                "Button hidden by default, visible on hover (`opacity-0 group-hover:opacity-100`)",
+                "Button click calls `onDeleteRequest` callback",
+                "`e.stopPropagation()` prevents card click when clicking delete",
+                "Uses existing `icon-sm` size and `ghost` variant from button.tsx",
+                "Typecheck passes",
+                "Verify in browser using dev-browser skill"
+            ],
+            "priority": 5,
+            "passes": true,
+            "notes": "Browser verification pending - no dev-browser skill available"
+        },
+        {
+            "id": "US-006",
+            "title": "Add mobile swipe-to-delete gesture",
+            "description": "As a mobile user, I want to swipe a document card left to delete it, following standard mobile patterns.",
+            "acceptanceCriteria": [
+                "Use Framer Motion `drag=\"x\"` on DocumentCard",
+                "`dragConstraints={{ left: 0, right: 0 }}` to snap back",
+                "100px left swipe threshold triggers delete dialog",
+                "Visual feedback: red background tint appears during swipe",
+                "`touch-pan-y` CSS allows vertical scrolling while enabling horizontal swipe",
+                "Card click only triggers if `Math.abs(x.get()) < 10` (not a swipe)",
+                "Typecheck passes",
+                "Unit tests for swipe detection logic pass",
+                "Verify in browser using dev-browser skill (mobile viewport)"
+            ],
+            "priority": 6,
+            "passes": true,
+            "notes": "Browser verification pending - no dev-browser skill available"
+        },
+        {
+            "id": "US-007",
+            "title": "Update DocumentsCard with animations and deletion flow",
+            "description": "As a user, I want deleted cards to animate out smoothly and remaining cards to reflow into place.",
+            "acceptanceCriteria": [
+                "Wrap document grid in `AnimatePresence mode=\"popLayout\"`",
+                "Each DocumentCard wrapped in `motion.div` with `layout` prop",
+                "Exit animation: `{{ opacity: 0, scale: 0.8, transition: { duration: 0.2 } }}`",
+                "State management: `deleteTarget` and `isDeleting` state",
+                "Wire up `removeDocument` mutation from Convex",
+                "Integrate `DeleteConfirmDialog` component",
+                "Typecheck passes",
+                "Verify in browser using dev-browser skill"
+            ],
+            "priority": 7,
+            "passes": true,
+            "notes": "Browser verification pending - no dev-browser skill available"
+        }
+    ]
+}

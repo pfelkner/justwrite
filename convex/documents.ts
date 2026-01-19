@@ -113,3 +113,17 @@ export const archive = mutation({
         });
     },
 });
+
+// Permanently delete a document (hard delete)
+export const remove = mutation({
+    args: { documentId: v.id("documents") },
+    handler: async (ctx, args) => {
+        const userId = await getAuthUserId(ctx);
+        if (!userId) throw new Error("Not authenticated");
+
+        const doc = await ctx.db.get(args.documentId);
+        if (doc?.userId !== userId) throw new Error("Not authorized");
+
+        await ctx.db.delete(args.documentId);
+    },
+});
